@@ -21,9 +21,9 @@ typedef struct block {
 
 typedef struct inode {
     int first_block;
-    char name[NAME_SIZE];
     int type; // -1 for init, 0 for file, 1 for folder
     int size;
+    int amount;
 } inode;
 
 typedef struct myopenfile {
@@ -56,4 +56,5 @@ int myclosedir(myDIR *dirp);
 
 void myprint(); // DONE
 int allocate_file_folder(const char *pathname, int type); // DONE
+void attach_file_to_folder(myDIR* mdir, int ino, const char* filename); // DONE
 void free_mem();
