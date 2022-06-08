@@ -5,7 +5,7 @@
 
 #define MAX_FILES 10000
 #define BLOCK_DATA_SIZE 512
-#define NAME_SIZE 8
+#define NAME_SIZE 16
 
 typedef struct superblock {
     int inodes_amount;
@@ -15,29 +15,36 @@ typedef struct superblock {
 
 typedef struct block {
     char data[BLOCK_DATA_SIZE];
-    struct block* next;
+    int next;
     int available;
 } block;
 
 typedef struct inode {
-    block* first_block;
+    int first_block;
     char name[NAME_SIZE];
+    int type; // -1 for init, 0 for file, 1 for folder
     int size;
 } inode;
 
 typedef struct myopenfile {
-    inode* my_inode;
+    int my_inode;
     int currser;
 } myopenfile;
 
 typedef struct myDIR {
-    int idk_yet;
-}myDIR;
+    int inode;
+    int currser;
+} myDIR;
+
+typedef struct mydirent {
+    int inode_num;
+    char d_name[NAME_SIZE];
+} mydirent;
 
 void mymkfs(int s); // DONE
 
-int mymount(const char* dest); // DONE
-// int mymount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data);
+void save_to_file(); // DONE
+int mymount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data);
 int myopen(const char *pathname, int flags); // DONE
 int myclose(int myfd); // DONE
 ssize_t myread(int myfd, void *buf, size_t count); // DONE
@@ -48,3 +55,5 @@ struct mydirent *myreaddir(myDIR *dirp);
 int myclosedir(myDIR *dirp);
 
 void myprint(); // DONE
+int allocate_file_folder(const char *pathname, int type); // DONE
+void free_mem();
