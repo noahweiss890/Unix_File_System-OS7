@@ -3,7 +3,9 @@
 superblock sb;
 inode* inodes;
 block* blocks;
+
 mydirent root;
+// myDIR* root;
 myopenfile fds[MAX_FILES];
 int avail_fd = 3;
 
@@ -25,9 +27,9 @@ void mymkfs(int s) {
     }
     for(int i = 0; i < sb.inodes_amount; i++) {
         inodes[i].first_block = -1;
-        // strcpy(inodes[i].name, "-------");
         inodes[i].type = -1;
         inodes[i].size = 0;
+        inodes[i].amount = 0;
     }
 
     blocks = (block*)malloc(sizeof(block) * sb.blocks_amount);
@@ -39,10 +41,8 @@ void mymkfs(int s) {
         blocks[i].next = -1;
         blocks[i].available = 1;
     }
-
     strcpy(root.d_name, "/");
     root.inode_num = allocate_file_folder("/", 1);
-
     save_to_file();
 }
 
@@ -74,7 +74,7 @@ void save_to_file() {
     }
     fwrite(&sb, sizeof(superblock), 1, fp);
     fwrite(inodes, sizeof(inode), sb.inodes_amount, fp);
-    fwrite(blocks, sizeof(block), sb.blocks_amount, fp);    
+    fwrite(blocks, sizeof(block), sb.blocks_amount, fp);
     fclose(fp);
 }
 
@@ -86,7 +86,7 @@ void myprint() {
 
     printf("inodes:\n");
     for(int i = 0; i < sb.inodes_amount; i++) {
-        printf("\tinode num: %d size: %d block: %d\n", i, inodes[i].size, inodes[i].first_block);
+        printf("\tinode num: %d size: %d block: %d amount: %d\n", i, inodes[i].size, inodes[i].first_block, inodes[i].amount);
     }
     printf("blocks:\n");
     for(int i = 0; i < sb.blocks_amount; i++) {
@@ -124,32 +124,37 @@ int allocate_file_folder(const char *pathname, int type) {
     inodes[avail_inode].first_block = avail_block;
     inodes[avail_inode].size = 1;
     inodes[avail_inode].type = type;
+    inodes[avail_inode].amount = 0;
     blocks[avail_block].available = 0;
     // strcpy(inodes[avail_inode].name, pathname);
     return avail_inode;
 }
 
 int myopen(const char *pathname, int flags) {
-
-    // strtok(pathname, "/");
-    // char* path = "/";
-    // for(int i = 0; i < sb.inodes_amount; i++) {
-    //     if(strcmp(path, inodes[i].name) == 0) {
-    //         DIR *hey;
-    //     }
-    // }
-
-    for(int i = 0; i < sb.inodes_amount; i++) {
-        if(strcmp(pathname, inodes[i].name) == 0) {
-            fds[avail_fd].my_inode = i;
+    if(flags == 1) {
+        return -1;
+    }
+    char path[NAME_SIZE];
+    char* filename = strrchr(pathname, '/');
+    strncpy(path, pathname, (filename + 1) - pathname);
+    myDIR* mdir = myopendir(path);
+    mydirent* mrent = myreaddir(mdir);
+    if(mrent == NULL) {
+        return -1;
+    }
+    while(mrent != NULL) {
+        if(strcmp(mrent->d_name, filename) == 0) {
+            fds[avail_fd].my_inode = mrent->inode_num;
             fds[avail_fd].currser = 0;
             return avail_fd++;
         }
+        mrent = myreaddir(mdir);
     }
-    int new_inode = allocate_file_folder(pathname, 0);
+    int new_inode = allocate_file_folder(filename, 0);
+    attach_file_to_folder(mdir, new_inode, filename);
     fds[avail_fd].my_inode = new_inode;
     fds[avail_fd].currser = 0;
-    return avail_fd++; 
+    return avail_fd++;
 }
 
 int myclose(int myfd) {
@@ -240,40 +245,123 @@ off_t mylseek(int myfd, off_t offset, int whence) {
     return -1;
 }
 
-myDIR* myopendir(const char *name) {
-    myopenfile mfd;
-    mfd.my_inode = root.inode_num;
-    mfd.currser = 0;
-    
-    myDIR* md = (myDIR*)malloc(sizeof(myDIR));
-    if(md == NULL) {
-        perror("no memory");
-        exit(0);
+void attach_file_to_folder(myDIR* mdir, int ino, const char* filename) {
+    mydirent md;
+    strcpy(md.d_name, strrchr(filename, '/') + 1);
+    md.inode_num = ino;
+
+    char* ch_md = (char*)&md;
+    int currser = inodes[ino].amount * sizeof(mydirent);
+    int block_num = currser / BLOCK_DATA_SIZE;
+    int curr_block = inodes[ino].first_block;
+    for(int i = 0; i < block_num; i++) {
+        if(blocks[curr_block].next == -1) {
+            int avail_block = find_available_block();
+            if(avail_block == -1) {
+                perror("find avail block");
+                exit(0);
+            }
+            blocks[avail_block].available = 0;
+            blocks[curr_block].next = avail_block;
+            inodes[ino].size++;
+        }
+        curr_block = blocks[curr_block].next;
     }
-    // md->inode = 
-    // CONTINUE HERE WITH INITIALIZING MD
+    for(int i = 0; i < sizeof(mydirent); i++) {
+        if(currser != 0 && (currser % BLOCK_DATA_SIZE) == 0) {
+            if(blocks[curr_block].next == -1) {
+                int avail_block = find_available_block();
+                if(avail_block == -1) {
+                    perror("find avail block");
+                    exit(0);
+                }
+                blocks[avail_block].available = 0;
+                blocks[curr_block].next = avail_block;
+                inodes[ino].size++;
+            }
+            curr_block = blocks[curr_block].next;
+        }
+        int pos = currser % BLOCK_DATA_SIZE;
+        blocks[curr_block].data[pos] = ch_md[i];
+        currser++;
+    }
+    save_to_file();
+    inodes[ino].amount++;
 }
 
-struct mydirent *myreaddir(myDIR *dirp) { // NOT DONE, WHAT TO RETURN?
-    char buff[sizeof(mydirent)];
+myDIR* myopendir(const char *name) {
+    if(strcmp(name, "/") == 0) {
+        myDIR* md = (myDIR*)malloc(sizeof(myDIR));
+        if(md == NULL) {
+            perror("no memory");
+            return NULL;
+        }
+        md->inode = root.inode_num;
+        md->currser = 0;
+        return md;
+    }
+    myDIR* mdir = myopendir("/");
+    if(mdir == NULL) {
+        return NULL;
+    }
+    struct mydirent* curr_obj = myreaddir(mdir);
+    if(curr_obj == NULL) {
+        return NULL;
+    }
+    char f_name[NAME_SIZE];
+    strcpy(f_name, name);
+    char* path = strtok(f_name + 1, "/");
+    while(path != NULL) {
+        while(curr_obj != NULL && strcmp(path, curr_obj->d_name) != 0 && inodes[curr_obj->inode_num].type == 1) {
+            free(curr_obj);
+            curr_obj = myreaddir(mdir);
+            if(curr_obj == NULL) {
+                return NULL;
+            }
+        }
+        if(curr_obj == NULL) {
+            perror("invalid folder");
+            return NULL;
+        }
+        mdir = myopendir(curr_obj->d_name);
+        if(mdir == NULL) {
+            return NULL;
+        }
+        path = strtok(NULL, "/");
+    }
+    free(curr_obj);
+    return mdir;
+}
+
+struct mydirent* myreaddir(myDIR *dirp) {
+    if(dirp->currser / sizeof(mydirent) >=  inodes[dirp->inode].amount) {
+        return NULL;
+    }
+    char* mrent = (char*)malloc(sizeof(mydirent));
+    if(mrent == NULL) {
+        perror("no memory");
+        return NULL;
+    }
     int block_num = dirp->currser / BLOCK_DATA_SIZE;
     if(block_num >= inodes[dirp->inode].size) {
-        return -1;
+        return NULL;
     }
     int curr_block = inodes[dirp->inode].first_block;
     for(int i = 0; i < sizeof(mydirent); i++) {
         if(dirp->currser != 0 && dirp->currser % BLOCK_DATA_SIZE == 0) {
             if(blocks[curr_block].next == -1) {
-                return i;
+                return NULL;
             }
             curr_block = blocks[curr_block].next;
         }
         int pos = dirp->currser % BLOCK_DATA_SIZE;
-        buff[i] = blocks[curr_block].data[pos];
+        mrent[i] = blocks[curr_block].data[pos];
         dirp->currser++;
     }
+    return (struct mydirent*)mrent;
 }
 
 int myclosedir(myDIR *dirp) { // NOT DONE
     free(dirp);
+    return 0;
 }
