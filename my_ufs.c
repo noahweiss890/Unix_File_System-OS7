@@ -81,7 +81,7 @@ int mymount(const char *source, const char *target, const char *filesystemtype, 
     fclose(fp);
     // printf("sb info -> inodes amount: %d blocks amount: %d\n", sb.inodes_amount, sb.blocks_amount);
     
-    printf("bla: %p\n", inodes[0].type); // THIS ISNT WORKING CUZ SEGMENTATION FAULT
+    printf("bla: %d\n", inodes[0].type); // THIS ISNT WORKING CUZ SEGMENTATION FAULT
     
     return 0;
 }
@@ -151,31 +151,33 @@ int allocate_file_folder(int type) {
 }
 
 int myopen(const char *pathname, int flags) {
-    printf("my open called with  -> :%s:\n", pathname);
+    // printf("my open called with  -> :%s:\n", pathname);
     char path[NAME_SIZE] = {'\0'};
     char* last_slash = strrchr(pathname, '/');
     strncpy(path, pathname, last_slash - pathname);
     myDIR* mdir = myopendir(path);
+    if(mdir == 0) {
+        return -1;
+    }
     mydirent* mrent = myreaddir(mdir);
     while(mrent != NULL) {
         if(strcmp(mrent->d_name, last_slash + 1) == 0) {
-            if(flags == 1) {
-                return -1;
-            }
             fds[avail_fd].my_inode = mrent->inode_num;
-            fds[avail_fd].currser = 0;
+            fds[avail_fd].curser = 0;
             return avail_fd++;
         }
+        free(mrent);
         mrent = myreaddir(mdir);
     }
-    int new_inode = allocate_file_folder(flags);
-    attach_file_to_folder(mdir, new_inode, last_slash + 1);
-    if(flags == 0) {
+    if(flags == 0100) {
+        int new_inode = allocate_file_folder(0);
+        attach_to_folder(mdir, new_inode, last_slash + 1);
         fds[avail_fd].my_inode = new_inode;
-        fds[avail_fd].currser = 0;
+        fds[avail_fd].curser = 0;
         myclosedir(mdir);
         return avail_fd++;
     }
+    free(mrent);
     myclosedir(mdir);
     return -1;
 }
@@ -193,21 +195,24 @@ ssize_t myread(int myfd, void *buf, size_t count) {
         return -1;
     }
     char* text = (char*)buf;
-    int block_num = fds[myfd].currser / BLOCK_DATA_SIZE;
+    int block_num = fds[myfd].curser / BLOCK_DATA_SIZE;
     if(block_num >= inodes[fds[myfd].my_inode].blocks_amount) {
         return -1;
     }
     int curr_block = inodes[fds[myfd].my_inode].first_block;
+    for(int i = 0; i < block_num; i++) {
+        curr_block = blocks[curr_block].next;
+    }
     for(int i = 0; i < count; i++) {
-        if(fds[myfd].currser != 0 && fds[myfd].currser % BLOCK_DATA_SIZE == 0) {
+        if(fds[myfd].curser != 0 && fds[myfd].curser % BLOCK_DATA_SIZE == 0) {
             if(blocks[curr_block].next == -1) {
                 return i;
             }
             curr_block = blocks[curr_block].next;
         }
-        int pos = fds[myfd].currser % BLOCK_DATA_SIZE;
+        int pos = fds[myfd].curser % BLOCK_DATA_SIZE;
         text[i] = blocks[curr_block].data[pos];
-        fds[myfd].currser++;
+        fds[myfd].curser++;
     }
     return count;
 }
@@ -217,7 +222,7 @@ ssize_t mywrite(int myfd, const void *buf, size_t count) {
         return -1;
     }
     char* text = (char*)buf;
-    int block_num = fds[myfd].currser / BLOCK_DATA_SIZE;
+    int block_num = fds[myfd].curser / BLOCK_DATA_SIZE;
     int curr_block = inodes[fds[myfd].my_inode].first_block;
     for(int i = 0; i < block_num; i++) {
         if(blocks[curr_block].next == -1) {
@@ -232,7 +237,7 @@ ssize_t mywrite(int myfd, const void *buf, size_t count) {
         curr_block = blocks[curr_block].next;
     }
     for(int i = 0; i < count; i++) {
-        if(fds[myfd].currser != 0 && (fds[myfd].currser % BLOCK_DATA_SIZE) == 0) {
+        if(fds[myfd].curser != 0 && (fds[myfd].curser % BLOCK_DATA_SIZE) == 0) {
             if(blocks[curr_block].next == -1) {
                 int avail_block = find_available_block();
                 if(avail_block == -1) {
@@ -244,9 +249,9 @@ ssize_t mywrite(int myfd, const void *buf, size_t count) {
             }
             curr_block = blocks[curr_block].next;
         }
-        int pos = fds[myfd].currser % BLOCK_DATA_SIZE;
+        int pos = fds[myfd].curser % BLOCK_DATA_SIZE;
         blocks[curr_block].data[pos] = text[i];
-        fds[myfd].currser++;
+        fds[myfd].curser++;
     }
     save_to_file();
     return count;
@@ -254,28 +259,28 @@ ssize_t mywrite(int myfd, const void *buf, size_t count) {
 
 off_t mylseek(int myfd, off_t offset, int whence) {
     if(whence == SEEK_SET) {
-        fds[myfd].currser = offset;
-        return fds[myfd].currser;
+        fds[myfd].curser = offset;
+        return fds[myfd].curser;
     }
     else if(whence == SEEK_CUR) {
-        fds[myfd].currser += offset;
-        return fds[myfd].currser;
+        fds[myfd].curser += offset;
+        return fds[myfd].curser;
     }
     else if(whence == SEEK_END) {
-        fds[myfd].currser = inodes[fds[myfd].my_inode].blocks_amount * BLOCK_DATA_SIZE - offset;
-        return fds[myfd].currser;
+        fds[myfd].curser = inodes[fds[myfd].my_inode].blocks_amount * BLOCK_DATA_SIZE - offset;
+        return fds[myfd].curser;
     }
     return -1;
 }
 
-void attach_file_to_folder(myDIR* mdir, int ino, const char* filename) {    
+void attach_to_folder(myDIR* mdir, int ino, const char* filename) {    
     mydirent md;
     strcpy(md.d_name, filename);
     md.inode_num = ino;
 
     char* ch_md = (char*)&md;
-    int currser = inodes[mdir->inode].mydirent_amount * sizeof(mydirent);
-    int block_num = currser / BLOCK_DATA_SIZE;
+    int curser = inodes[mdir->inode].mydirent_amount * sizeof(mydirent);
+    int block_num = curser / BLOCK_DATA_SIZE;
     int curr_block = inodes[mdir->inode].first_block;
     for(int i = 0; i < block_num; i++) {
         if(blocks[curr_block].next == -1) {
@@ -291,7 +296,7 @@ void attach_file_to_folder(myDIR* mdir, int ino, const char* filename) {
         curr_block = blocks[curr_block].next;
     }
     for(int i = 0; i < sizeof(mydirent); i++) {
-        if(currser != 0 && (currser % BLOCK_DATA_SIZE) == 0) {
+        if(curser != 0 && (curser % BLOCK_DATA_SIZE) == 0) {
             if(blocks[curr_block].next == -1) {
                 int avail_block = find_available_block();
                 if(avail_block == -1) {
@@ -304,9 +309,9 @@ void attach_file_to_folder(myDIR* mdir, int ino, const char* filename) {
             }
             curr_block = blocks[curr_block].next;
         }
-        int pos = currser % BLOCK_DATA_SIZE;
+        int pos = curser % BLOCK_DATA_SIZE;
         blocks[curr_block].data[pos] = ch_md[i];
-        currser++;
+        curser++;
     }
     inodes[mdir->inode].mydirent_amount++;
     save_to_file();
@@ -314,6 +319,7 @@ void attach_file_to_folder(myDIR* mdir, int ino, const char* filename) {
 
 myDIR* myopendir(const char *name) {
     // printf("myopendir called -> :%s:\n", name);
+    // for(int i = 0; i < 100000000; i++);
     if(strcmp(name, "\0") == 0) {
         myDIR* md = (myDIR*)malloc(sizeof(myDIR));
         if(md == NULL) {
@@ -321,53 +327,77 @@ myDIR* myopendir(const char *name) {
             return NULL;
         }
         md->inode = sb.root.inode_num;
-        md->currser = 0;
+        md->curser = 0;
         return md;
     }
-    myDIR* mdir = myopendir("\0");
+    char parent_folder[NAME_SIZE] = {'\0'};
+    strncpy(parent_folder, name, strrchr(name, '/') - name);
+    myDIR* mdir = myopendir(parent_folder);
     if(mdir == NULL) {
         return NULL;
     }
     struct mydirent* curr_obj;
-    char curr_path[NAME_SIZE];
-    strcpy(curr_path, name);
-    char f_name[NAME_SIZE];
-    strcpy(f_name, name);
-    char* path = strtok(f_name, "/");
-    while(path != NULL) {
-        curr_obj = myreaddir(mdir);
-        if(curr_obj == NULL) {
-            perror("invalid folder");
-            return NULL;
-        }
-        // printf("comparing -> :%s: and :%s:\n", path, curr_obj->d_name);
-        while(strcmp(path, curr_obj->d_name) != 0 && inodes[curr_obj->inode_num].type != 1) {
+    curr_obj = myreaddir(mdir);
+    while(curr_obj != NULL) {
+        if(strcmp(curr_obj->d_name, strrchr(name, '/') + 1) == 0) {
             free(curr_obj);
-            curr_obj = myreaddir(mdir);
-            if(curr_obj == NULL) {
-                return NULL;
-            }
-            // printf("comparing -> :%s: and :%s:\n", path, curr_obj->d_name);
-        }
-        path = strtok(NULL, "/");
-        if(path == NULL) {
-            break;
-        }
-        strcat(curr_path, "/");
-        strcat(curr_path, curr_obj->d_name);
-        // printf("curr_path is-> :%s:\n", curr_path);
-        mdir = myopendir(curr_path);
-        if(mdir == NULL) {
-            return NULL;
+            return mdir;
         }
         free(curr_obj);
+        curr_obj = myreaddir(mdir);
     }
-    free(curr_obj);
+    int ino = allocate_file_folder(1);
+    attach_to_folder(mdir, ino, strrchr(name, '/') + 1);
+    mdir->inode = ino;
     return mdir;
+
+
+    // perror("folder not found\n");
+    // return NULL;
+
+
+    // struct mydirent* curr_obj;
+    // char curr_path[NAME_SIZE];
+    // strcpy(curr_path, name);
+    // char f_name[NAME_SIZE];
+    // strcpy(f_name, name);
+    // char* path = strtok(f_name, "/");
+    // printf("path is now: %s\n", path);
+    // while(path != NULL) {
+    //     curr_obj = myreaddir(mdir);
+    //     if(curr_obj == NULL) {
+    //         perror("invalid folder");
+    //         return NULL;
+    //     }
+    //     // printf("comparing -> :%s: and :%s:\n", path, curr_obj->d_name);
+    //     while(strcmp(path, curr_obj->d_name) != 0 && inodes[curr_obj->inode_num].type != 1) {
+    //         free(curr_obj);
+    //         curr_obj = myreaddir(mdir);
+    //         if(curr_obj == NULL) {
+    //             return NULL;
+    //         }
+    //         // printf("comparing -> :%s: and :%s:\n", path, curr_obj->d_name);
+    //     }
+    //     path = strtok(NULL, "/");
+    //     printf("path is now: %s\n", path);
+    //     if(path == NULL) {
+    //         break;
+    //     }
+    //     strcat(curr_path, "/");
+    //     strcat(curr_path, curr_obj->d_name);
+    //     // printf("curr_path is-> :%s:\n", curr_path);
+    //     mdir = myopendir(curr_path);
+    //     if(mdir == NULL) {
+    //         return NULL;
+    //     }
+    //     free(curr_obj);
+    // }
+    // free(curr_obj);
+    // return mdir;
 }
 
 struct mydirent* myreaddir(myDIR *dirp) {
-    if(dirp->currser / sizeof(mydirent) >=  inodes[dirp->inode].mydirent_amount) {
+    if(dirp->curser / sizeof(mydirent) >=  inodes[dirp->inode].mydirent_amount) {
         return NULL;
     }
     char* mrent = (char*)malloc(sizeof(mydirent));
@@ -375,21 +405,21 @@ struct mydirent* myreaddir(myDIR *dirp) {
         perror("no memory");
         return NULL;
     }
-    int block_num = dirp->currser / BLOCK_DATA_SIZE;
+    int block_num = dirp->curser / BLOCK_DATA_SIZE;
     if(block_num >= inodes[dirp->inode].blocks_amount) {
         return NULL;
     }
     int curr_block = inodes[dirp->inode].first_block;
     for(int i = 0; i < sizeof(mydirent); i++) {
-        if(dirp->currser != 0 && dirp->currser % BLOCK_DATA_SIZE == 0) {
+        if(dirp->curser != 0 && dirp->curser % BLOCK_DATA_SIZE == 0) {
             if(blocks[curr_block].next == -1) {
                 return NULL;
             }
             curr_block = blocks[curr_block].next;
         }
-        int pos = dirp->currser % BLOCK_DATA_SIZE;
+        int pos = dirp->curser % BLOCK_DATA_SIZE;
         mrent[i] = blocks[curr_block].data[pos];
-        dirp->currser++;
+        dirp->curser++;
     }
     return (struct mydirent*)mrent;
 }
