@@ -7,10 +7,16 @@
 #define BLOCK_DATA_SIZE 512
 #define NAME_SIZE 16
 
+typedef struct mydirent {
+    int inode_num;
+    char d_name[NAME_SIZE];
+} mydirent;
+
 typedef struct superblock {
     int inodes_amount;
     int blocks_amount;
     int block_size;
+    mydirent root;
 } superblock;
 
 typedef struct block {
@@ -22,8 +28,8 @@ typedef struct block {
 typedef struct inode {
     int first_block;
     int type; // -1 for init, 0 for file, 1 for folder
-    int size;
-    int amount;
+    int blocks_amount;
+    int mydirent_amount;
 } inode;
 
 typedef struct myopenfile {
@@ -35,11 +41,6 @@ typedef struct myDIR {
     int inode;
     int currser;
 } myDIR;
-
-typedef struct mydirent {
-    int inode_num;
-    char d_name[NAME_SIZE];
-} mydirent;
 
 void mymkfs(int s); // DONE
 
@@ -55,6 +56,6 @@ struct mydirent *myreaddir(myDIR *dirp);
 int myclosedir(myDIR *dirp);
 
 void myprint(); // DONE
-int allocate_file_folder(const char *pathname, int type); // DONE
+int allocate_file_folder(int type); // DONE
 void attach_file_to_folder(myDIR* mdir, int ino, const char* filename); // DONE
 void free_mem();
