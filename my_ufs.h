@@ -5,7 +5,7 @@
 
 #define MAX_FILES 10000
 #define BLOCK_DATA_SIZE 512
-#define NAME_SIZE 16
+#define NAME_SIZE 24
 
 typedef struct mydirent {
     int inode_num;
@@ -34,12 +34,12 @@ typedef struct inode {
 
 typedef struct myopenfile {
     int my_inode;
-    int currser;
+    int curser;
 } myopenfile;
 
 typedef struct myDIR {
     int inode;
-    int currser;
+    int curser;
 } myDIR;
 
 void mymkfs(int s); // DONE
@@ -57,5 +57,5 @@ int myclosedir(myDIR *dirp);
 
 void myprint(); // DONE
 int allocate_file_folder(int type); // DONE
-void attach_file_to_folder(myDIR* mdir, int ino, const char* filename); // DONE
+void attach_to_folder(myDIR* mdir, int ino, const char* filename); // DONE
 void free_mem();
