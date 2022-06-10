@@ -27,7 +27,7 @@ typedef struct block {
 
 typedef struct inode {
     int first_block;
-    int type; // -1 for init, 0 for file, 1 for folder
+    int type;
     int blocks_amount;
     int mydirent_amount;
 } inode;
