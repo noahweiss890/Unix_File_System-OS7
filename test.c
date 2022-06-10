@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <fcntl.h>
 #include "my_ufs.h"
 
 int main() {
