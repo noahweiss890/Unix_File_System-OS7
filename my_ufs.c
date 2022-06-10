@@ -318,8 +318,6 @@ void attach_to_folder(myDIR* mdir, int ino, const char* filename) {
 }
 
 myDIR* myopendir(const char *name) {
-    // printf("myopendir called -> :%s:\n", name);
-    // for(int i = 0; i < 100000000; i++);
     if(strcmp(name, "\0") == 0) {
         myDIR* md = (myDIR*)malloc(sizeof(myDIR));
         if(md == NULL) {
@@ -339,61 +337,21 @@ myDIR* myopendir(const char *name) {
     struct mydirent* curr_obj;
     curr_obj = myreaddir(mdir);
     while(curr_obj != NULL) {
-        if(strcmp(curr_obj->d_name, strrchr(name, '/') + 1) == 0) {
+        if(inodes[curr_obj->inode_num].type == 1 && strcmp(curr_obj->d_name, strrchr(name, '/') + 1) == 0) {
+            mdir->inode = curr_obj->inode_num;
+            mdir->curser = 0;
             free(curr_obj);
             return mdir;
         }
         free(curr_obj);
         curr_obj = myreaddir(mdir);
     }
+    free(curr_obj);
     int ino = allocate_file_folder(1);
     attach_to_folder(mdir, ino, strrchr(name, '/') + 1);
     mdir->inode = ino;
+    mdir->curser = 0;
     return mdir;
-
-
-    // perror("folder not found\n");
-    // return NULL;
-
-
-    // struct mydirent* curr_obj;
-    // char curr_path[NAME_SIZE];
-    // strcpy(curr_path, name);
-    // char f_name[NAME_SIZE];
-    // strcpy(f_name, name);
-    // char* path = strtok(f_name, "/");
-    // printf("path is now: %s\n", path);
-    // while(path != NULL) {
-    //     curr_obj = myreaddir(mdir);
-    //     if(curr_obj == NULL) {
-    //         perror("invalid folder");
-    //         return NULL;
-    //     }
-    //     // printf("comparing -> :%s: and :%s:\n", path, curr_obj->d_name);
-    //     while(strcmp(path, curr_obj->d_name) != 0 && inodes[curr_obj->inode_num].type != 1) {
-    //         free(curr_obj);
-    //         curr_obj = myreaddir(mdir);
-    //         if(curr_obj == NULL) {
-    //             return NULL;
-    //         }
-    //         // printf("comparing -> :%s: and :%s:\n", path, curr_obj->d_name);
-    //     }
-    //     path = strtok(NULL, "/");
-    //     printf("path is now: %s\n", path);
-    //     if(path == NULL) {
-    //         break;
-    //     }
-    //     strcat(curr_path, "/");
-    //     strcat(curr_path, curr_obj->d_name);
-    //     // printf("curr_path is-> :%s:\n", curr_path);
-    //     mdir = myopendir(curr_path);
-    //     if(mdir == NULL) {
-    //         return NULL;
-    //     }
-    //     free(curr_obj);
-    // }
-    // free(curr_obj);
-    // return mdir;
 }
 
 struct mydirent* myreaddir(myDIR *dirp) {
