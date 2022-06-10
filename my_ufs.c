@@ -3,9 +3,6 @@
 superblock sb;
 inode* inodes;
 block* blocks;
-
-// mydirent root;
-// myDIR* root;
 myopenfile fds[MAX_FILES];
 int avail_fd = 3;
 
@@ -30,6 +27,7 @@ void mymkfs(int s) {
         inodes[i].type = -1;
         inodes[i].blocks_amount = 0;
         inodes[i].mydirent_amount = 0;
+        inodes[i].length = 0;
     }
 
     blocks = (block*)malloc(sizeof(block) * sb.blocks_amount);
@@ -107,7 +105,7 @@ void myprint() {
 
     printf("inodes:\n");
     for(int i = 0; i < sb.inodes_amount; i++) {
-        printf("\tinode num: %d size: %d first block: %d amount: %d type: %d\n", i, inodes[i].blocks_amount, inodes[i].first_block, inodes[i].mydirent_amount, inodes[i].type);
+        printf("\tinode num: %d size: %d first block: %d amount: %d type: %d length: %d\n", i, inodes[i].blocks_amount, inodes[i].first_block, inodes[i].mydirent_amount, inodes[i].type, inodes[i].length);
     }
     printf("blocks:\n");
     for(int i = 0; i < sb.blocks_amount; i++) {
@@ -146,12 +144,12 @@ int allocate_file_folder(int type) {
     inodes[avail_inode].blocks_amount = 1;
     inodes[avail_inode].type = type;
     inodes[avail_inode].mydirent_amount = 0;
+    inodes[avail_block].length = 0;
     blocks[avail_block].available = 0;
     return avail_inode;
 }
 
 int myopen(const char *pathname, int flags) {
-    // printf("my open called with  -> :%s:\n", pathname);
     char path[NAME_SIZE] = {'\0'};
     char* last_slash = strrchr(pathname, '/');
     strncpy(path, pathname, last_slash - pathname);
@@ -163,17 +161,27 @@ int myopen(const char *pathname, int flags) {
     while(mrent != NULL) {
         if(strcmp(mrent->d_name, last_slash + 1) == 0) {
             fds[avail_fd].my_inode = mrent->inode_num;
-            fds[avail_fd].curser = 0;
+            if(flags & (O_CREAT | O_WRONLY)) {
+                fds[avail_fd].curser = inodes[mrent->inode_num].length;
+            }
+            else {
+                fds[avail_fd].curser = 0;
+            }
             return avail_fd++;
         }
         free(mrent);
         mrent = myreaddir(mdir);
     }
-    if(flags == 0100) {
+    if(flags & O_CREAT) {
         int new_inode = allocate_file_folder(0);
         attach_to_folder(mdir, new_inode, last_slash + 1);
         fds[avail_fd].my_inode = new_inode;
-        fds[avail_fd].curser = 0;
+        if(flags & (O_CREAT | O_WRONLY)) {
+                fds[avail_fd].curser = inodes[mrent->inode_num].length;
+            }
+            else {
+                fds[avail_fd].curser = 0;
+            }
         myclosedir(mdir);
         return avail_fd++;
     }
@@ -252,6 +260,7 @@ ssize_t mywrite(int myfd, const void *buf, size_t count) {
         int pos = fds[myfd].curser % BLOCK_DATA_SIZE;
         blocks[curr_block].data[pos] = text[i];
         fds[myfd].curser++;
+        inodes[fds[myfd].my_inode].length++;
     }
     save_to_file();
     return count;
@@ -267,7 +276,7 @@ off_t mylseek(int myfd, off_t offset, int whence) {
         return fds[myfd].curser;
     }
     else if(whence == SEEK_END) {
-        fds[myfd].curser = inodes[fds[myfd].my_inode].blocks_amount * BLOCK_DATA_SIZE - offset;
+        fds[myfd].curser = inodes[fds[myfd].my_inode].length - offset;
         return fds[myfd].curser;
     }
     return -1;
