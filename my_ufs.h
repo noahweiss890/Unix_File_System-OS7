@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
 
 #define MAX_FILES 10000
 #define BLOCK_DATA_SIZE 512
@@ -30,6 +31,7 @@ typedef struct inode {
     int type;
     int blocks_amount;
     int mydirent_amount;
+    int length;
 } inode;
 
 typedef struct myopenfile {
