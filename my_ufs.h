@@ -1,3 +1,6 @@
+#ifndef MY_UFS_H
+#define MY_UFS_H
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <string.h>
@@ -61,3 +64,5 @@ void myprint(); // DONE
 int allocate_file_folder(int type); // DONE
 void attach_to_folder(myDIR* mdir, int ino, const char* filename); // DONE
 void free_mem();
+
+#endif
