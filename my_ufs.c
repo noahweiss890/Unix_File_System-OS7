@@ -11,11 +11,11 @@ void mymkfs(int s) {
     sb.blocks_amount = (s - (sb.inodes_amount * sizeof(inode)) - sizeof(superblock)) / sizeof(block);
     sb.block_size = sizeof(block);
 
-    printf("inodes: %d\n", sb.inodes_amount);
-    printf("blocks: %d\n", sb.blocks_amount);
-    printf("size of superblock: %ld\n", sizeof(superblock));
-    printf("size of inode: %ld\n", sizeof(inode));
-    printf("size of block: %ld\n", sizeof(block));
+    // printf("inodes: %d\n", sb.inodes_amount);
+    // printf("blocks: %d\n", sb.blocks_amount);
+    // printf("size of superblock: %ld\n", sizeof(superblock));
+    // printf("size of inode: %ld\n", sizeof(inode));
+    // printf("size of block: %ld\n", sizeof(block));
 
     inodes = (inode*)malloc(sizeof(inode) * sb.inodes_amount);
     if(inodes == NULL) {
@@ -176,12 +176,12 @@ int myopen(const char *pathname, int flags) {
         int new_inode = allocate_file_folder(0);
         attach_to_folder(mdir, new_inode, last_slash + 1);
         fds[avail_fd].my_inode = new_inode;
-        if(flags & (O_CREAT | O_WRONLY)) {
-                fds[avail_fd].curser = inodes[mrent->inode_num].length;
-            }
-            else {
-                fds[avail_fd].curser = 0;
-            }
+        if(flags & O_APPEND) {
+            fds[avail_fd].curser = inodes[mrent->inode_num].length;
+        }
+        else {
+            fds[avail_fd].curser = 0;
+        }
         myclosedir(mdir);
         return avail_fd++;
     }
