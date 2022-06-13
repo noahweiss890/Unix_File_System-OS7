@@ -23,6 +23,7 @@ myFILE* myfopen(const char *pathname, const char *mode) {
         mf->flags = O_WRONLY | O_CREAT | O_APPEND;
     }
     if(mf->fd == -1) {
+        perror("file not found");
         free(mf);
         return NULL;
     }
@@ -50,6 +51,7 @@ size_t myfread(void *ptr, size_t size, size_t nmemb, myFILE *stream) {
         }
         return count;
     }
+    perror("cant read in current mode");
     return -1;
 }
 
@@ -65,6 +67,7 @@ size_t myfwrite(void *ptr, size_t size, size_t nmemb, myFILE *stream) {
         }
         return count;
     }
+    perror("cant write in current mode");
     return -1;
 }
 
@@ -76,17 +79,98 @@ int myfseek(myFILE *stream, long offset, int whence) {
 }
 
 int myfscanf(myFILE *stream, const char *format, ...) {
-    // va_list arg;
-    // int done;
+    va_list arg;
+    int done = 0;
+    size_t read;
+    int* i_ptr;
+    char* c_ptr;
+    float* f_ptr;
 
-    // va_start (arg, format);
-    // printf("arg-> :%s: format-? :%s:\n", arg, format);
-    // // done = __vfscanf (stream, format, arg);
-    // // va_end (arg);
-
-    // return done;
+    va_start(arg, format);
+    
+    char* perc = strchr(format, '%');
+    while(perc != NULL) {
+        switch(*(perc + 1)) {
+        case 'd':
+            i_ptr = va_arg(arg, int*);
+            read = myfread(i_ptr, sizeof(int), 1, stream);
+            if(read == -1) {
+                return done;
+            }
+            break;
+        case 'c':
+            c_ptr = va_arg(arg, char*);
+            read = myfread(c_ptr, sizeof(char), 1, stream);
+            if(read == -1) {
+                return done;
+            }
+            break;
+        case 'f':
+            f_ptr = va_arg(arg, float*);
+            read = myfread(f_ptr, sizeof(float), 1, stream);
+            if(read == -1) {
+                return done;
+            }
+            break;
+        default:
+            return done;
+        }
+        done++;
+        perc = strchr(perc + 1, '%');
+    }
+    va_end(arg);
+    return done;
 }
 
-int myprintf(myFILE *stream, const char *format, ...) {
+int myfprintf(myFILE *stream, const char *format, ...) {
+    va_list arg;
+    int done = 0;
+    size_t read;
+    int i_val;
+    char c_val;
+    float f_val;
+    char temp[1];
 
+    va_start(arg, format);
+    
+    for(int i = 0; i < strlen(format); i++) {
+        if(*(format + i) == '%') {
+            switch(*(format + i + 1)) {
+            case 'd':
+                i_val = va_arg(arg, int);
+                read = myfwrite(&i_val, sizeof(int), 1, stream);
+                if(read == -1) {
+                    return done;
+                }
+                break;
+            case 'c':
+                c_val = va_arg(arg, int);
+                read = myfwrite(&c_val, sizeof(char), 1, stream);
+                if(read == -1) {
+                    return done;
+                }
+                break;
+            case 'f':
+                f_val = va_arg(arg, double);
+                read = myfwrite(&f_val, sizeof(float), 1, stream);
+                if(read == -1) {
+                    return done;
+                }
+                break;
+            default:
+                return done;
+            }
+            done++;
+            i++;
+        }
+        else {
+            strncpy(temp, format, 1);
+            myfwrite(temp, sizeof(char), 1, stream);
+            if(read == -1) {
+                return done;
+            }
+        }
+    }
+    va_end(arg);
+    return done;
 }
