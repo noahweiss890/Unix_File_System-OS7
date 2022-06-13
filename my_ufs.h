@@ -47,22 +47,22 @@ typedef struct myDIR {
     int curser;
 } myDIR;
 
-void mymkfs(int s); // DONE
+void mymkfs(int s);
 
-void save_to_file(); // DONE
+void save_to_file(const char *pathname);
 int mymount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data);
-int myopen(const char *pathname, int flags); // DONE
-int myclose(int myfd); // DONE
-ssize_t myread(int myfd, void *buf, size_t count); // DONE
-ssize_t mywrite(int myfd, const void *buf, size_t count); // DONE
-off_t mylseek(int myfd, off_t offset, int whence); // DONE
+int myopen(const char *pathname, int flags);
+int myclose(int myfd);
+ssize_t myread(int myfd, void *buf, size_t count);
+ssize_t mywrite(int myfd, const void *buf, size_t count);
+off_t mylseek(int myfd, off_t offset, int whence);
 myDIR *myopendir(const char *name);
 struct mydirent *myreaddir(myDIR *dirp);
 int myclosedir(myDIR *dirp);
 
-void myprint(); // DONE
-int allocate_file_folder(int type); // DONE
-void attach_to_folder(myDIR* mdir, int ino, const char* filename); // DONE
+void myprint();
+int allocate_file_folder(int type);
+void attach_to_folder(myDIR* mdir, int ino, const char* filename);
 void free_mem();
 
 #endif
