@@ -4,9 +4,11 @@
 
 int main() {
 
-    mymkfs(10240);
-    // mymount("myFile.txt", " ", " ", 0, " "); // SEG FAULT IN THIS FUNCTION
-    // printf("mounted\n");
+    mymkfs(10240); // creates the file system
+
+    int ret = mymount("myFile.txt", NULL, NULL, 0, NULL);
+    assert(ret == 0);
+    printf("mounted\n");
 
     myFILE* fp1 = myfopen("/zion", "w"); // this will create a file "/zion"
     myfclose(fp1);
@@ -39,9 +41,21 @@ int main() {
     printf("successfully read in myfread -> %d\n", read);
     printf("read from file -> %s\n", res);
     assert(strcmp(res, "hello rashi! and noah!") == 0);
-    
     myfclose(fp2);
 
+    myDIR* md = myopendir("/animal/doggo"); // create this path
+    myFILE* fp3 = myfopen("/animal/doggo/pup", "a"); // add file at this path
+    wrote = mywrite(fp3->fd, "mocha is a doggo", 16);
+    assert(wrote == 16);
+    myclosedir(md);
+    myfclose(fp3);
+
+    myFILE* fp4 = myfopen("/animal/doggo/pup", "r"); // checking it opens successfully
+    myfclose(fp4);
+
+    printf("\n");
+    myprint(); // print info on the file system
+    free_mem(); // free all memory
     printf("done\n");
 
     return 0;
